@@ -1,9 +1,4 @@
 import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
-};
-
+// Environment setup and API responses are evaluated per request, never prerendered.
+const nextConfig: NextConfig = { poweredByHeader: false, devIndicators: false };
 export default nextConfig;
