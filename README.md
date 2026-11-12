@@ -2,7 +2,7 @@
 
 保留 `hirebase-streamlit` 的簡潔流程，使用獨立設計的側欄按鈕、搜尋分頁與分組表單。主畫面一次顯示一個功能，按下操作按鈕後才顯示表格或文字結果。全介面使用繁體中文，常用篩選直接顯示，其餘放在「更多篩選」。切換功能會保留輸入與結果，重新整理後清空。保留 Next.js 與現有伺服器連線。
 
-本專案獨立於 Streamlit、AICon、job-source-lab 及 Railway，僅供本機使用，沒有部署。
+本專案獨立於 Streamlit、AICon 及 job-source-lab，可在本機或 Railway 使用。
 
 ## Run locally
 
@@ -16,7 +16,11 @@ npm run dev
 
 Open [http://127.0.0.1:3100](http://127.0.0.1:3100). Before running a query, set `HIREBASE_API_KEY` in `.env.local` and restart. The key is read by the server only; never use a `NEXT_PUBLIC_` variable. The UI receives only whether a key is configured.
 
-Set `HIREBASE_OWNER_MODE=true` locally to enable resume processing, task reads and usage reads. Resume upload stores the file with Hirebase; parsing updates that stored record. Embedding is documented as stateless. Owner mode is an intentional local capability gate, not user authentication. Keep this app bound to loopback; do not deploy or expose it through a tunnel.
+Set `HIREBASE_OWNER_MODE=true` locally to enable resume processing, task reads and usage reads. Resume upload stores the file with Hirebase; parsing updates that stored record. Embedding is documented as stateless. Owner mode is an intentional local capability gate, not user authentication.
+
+## Run on Railway
+
+Set `HIREBASE_API_KEY` in the service's **Variables** and use the start command `npx next start --hostname 0.0.0.0 --port 3100` with target port `3100`. The app uses Railway's `RAILWAY_PUBLIC_DOMAIN` to accept same-origin HTTPS requests. Hosted access covers job and company search, market insights and historical search. Salary reports, resume artifacts and account operations require the local playground. Visitors to the public URL can consume the server key's quota.
 
 ## 功能
 
@@ -33,7 +37,7 @@ The [capability inventory](CAPABILITIES.md) remains repository documentation for
 ## Access and safety
 
 - The server permits only catalogued operations on `https://api.hirebase.org`, with `x-api-key` attached upstream. It rejects arbitrary destinations and redirects.
-- Requests require a matching loopback Origin/Host. The default dev and production start commands bind to `127.0.0.1:3100`.
+- Local requests require a matching loopback Origin/Host. The default dev and production start commands bind to `127.0.0.1:3100`.
 - Exports, historical purchases, hiring contact research/reveals, webhook subscriptions/delivery tests and signing-secret endpoints are disabled for live requests. Test fixtures exercise their sample behavior. Technology APIs are marked unavailable because the provider documents them as coming soon.
 - Requests default to 5 results and cap at 100. Some provider limits are larger or undocumented. Search estimates allow `limit: 0` without fetching records. Resume files are limited to one supported file of at most 5 MB.
 - Search uses strict allowlisted fields and string boolean flags where documented. Neural search has a separate nested vector/lexical schema and pagination inside `lexical`. Unknown fields are rejected locally.

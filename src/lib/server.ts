@@ -40,6 +40,17 @@ export function localRequestAllowed(request: Request) {
     )
   );
 }
+
+export function railwayRequestAllowed(request: Request, domain: string) {
+  return (
+    request.headers.get("host") === domain &&
+    request.headers.get("origin") === `https://${domain}` &&
+    ["same-origin", "none", null].includes(
+      request.headers.get("sec-fetch-site"),
+    )
+  );
+}
+
 export async function execute(
   payload: unknown,
   context: ServerContext,

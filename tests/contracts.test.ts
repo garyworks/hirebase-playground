@@ -442,3 +442,78 @@ test("the playground HTTP route rejects fixture requests", async () => {
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /live requests only/);
 });
+
+test("Railway queries use the server key and require the configured public origin", async (t) => {
+  const { POST } = await import("../src/app/api/hirebase/route");
+  const domain = "playground.up.railway.app";
+  const origin = `https://${domain}`;
+  const env = {
+    RAILWAY_PUBLIC_DOMAIN: domain,
+    HIREBASE_API_KEY: "test-server-key",
+    HIREBASE_OWNER_MODE: "true",
+  };
+  const previous = Object.keys(env).map(
+    (key) => [key, process.env[key]] as const,
+  );
+  Object.assign(process.env, env);
+  t.after(() => {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  const upstream = t.mock.method(globalThis, "fetch", async () =>
+    Response.json({ jobs: [] }),
+  );
+  function post(
+    operationId: string,
+    input: Record<string, unknown>,
+    overrides: Record<string, string> = {},
+  ) {
+    return POST(
+      new Request("http://localhost:3100/api/hirebase", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          host: domain,
+          origin,
+          "sec-fetch-site": "same-origin",
+          ...overrides,
+        },
+        body: JSON.stringify({ operationId, input, mode: "live" }),
+      }),
+    );
+  }
+  const response = await post("search", { limit: 1 });
+  assert.equal(response.status, 200);
+  assert.ok(!(await response.text()).includes(env.HIREBASE_API_KEY));
+  assert.equal(upstream.mock.calls.length, 1);
+  const [url, options] = upstream.mock.calls[0].arguments;
+  assert.equal(url, "https://api.hirebase.org/v2/jobs/search");
+  assert.equal(
+    new Headers(options?.headers).get("x-api-key"),
+    env.HIREBASE_API_KEY,
+  );
+
+  const blockedHeaders: Record<string, string>[] = [
+    { origin: "https://other.up.railway.app" },
+    { host: "other.up.railway.app" },
+    { origin: `http://${domain}` },
+    { "sec-fetch-site": "cross-site" },
+    { host: "localhost:3100", origin: "http://localhost:3100" },
+  ];
+  for (const overrides of blockedHeaders) {
+    assert.equal((await post("search", { limit: 1 }, overrides)).status, 403);
+  }
+  assert.equal((await post("task", { task_id: "example" })).status, 403);
+  assert.equal((await post("salary", { job_title: "Engineer" })).status, 403);
+  assert.equal(
+    (
+      await post("neural", {
+        vector: { artifact_id: "6a3c15d537f33c238c70a14e" },
+      })
+    ).status,
+    403,
+  );
+  assert.equal(upstream.mock.calls.length, 1);
+});

@@ -1,17 +1,34 @@
-import { execute, localRequestAllowed, readLimited } from "@/lib/server";
+import {
+  execute,
+  localRequestAllowed,
+  railwayRequestAllowed,
+  readLimited,
+} from "@/lib/server";
 import { record } from "@/lib/validation";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const hostedOperations = new Set([
+  "search",
+  "neural",
+  "lookup",
+  "companies",
+  "insights",
+  "historical",
+]);
+
 export async function POST(request: Request) {
   const headers = {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
   };
-  if (!localRequestAllowed(request))
+  const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  const allowed = railwayDomain
+    ? railwayRequestAllowed(request, railwayDomain)
+    : localRequestAllowed(request);
+  if (!allowed)
     return Response.json(
       {
-        error:
-          "Only same-origin requests to the local playground are permitted.",
+        error: "Only same-origin requests to the playground are permitted.",
       },
       { status: 403, headers },
     );
@@ -64,11 +81,27 @@ export async function POST(request: Request) {
         { status: 400, headers },
       );
     }
+    if (railwayDomain) {
+      const vector = record(payload.input) ? payload.input.vector : undefined;
+      if (
+        typeof payload.operationId !== "string" ||
+        !hostedOperations.has(payload.operationId) ||
+        (payload.operationId === "neural" &&
+          record(vector) &&
+          "artifact_id" in vector)
+      )
+        return Response.json(
+          {
+            error: "This operation is not available on the hosted playground.",
+          },
+          { status: 403, headers },
+        );
+    }
     const result = await execute(
       payload,
       {
         apiKey: process.env.HIREBASE_API_KEY?.trim(),
-        ownerMode: process.env.HIREBASE_OWNER_MODE === "true",
+        ownerMode: !railwayDomain && process.env.HIREBASE_OWNER_MODE === "true",
       },
       file,
     );
